@@ -1,0 +1,17 @@
+
+white
+Bl, Gl, Rl  0 0 77
+Bh, Gh, Rh  136 119 243
+iterations 2
+
+
+red
+Bl, Gl, Rl 0 53 83
+Bh, Gh, Rh 6 255 255
+iterations 0
+
+blue
+Bl, Gl, Rl 89 65 77
+Bh, Gh, Rh 154 255 166
+iterations 0
+
