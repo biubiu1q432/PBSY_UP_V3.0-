@@ -121,5 +121,5 @@ class Color_debugger:
         
 
 
-cd = Color_debugger(r"D:\CV\photo")
+cd = Color_debugger(r"D:\CV\ROBOCUP\photo")
 cd.for_pic()

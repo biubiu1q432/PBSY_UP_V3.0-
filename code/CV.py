@@ -4,9 +4,10 @@ import numpy as np
 import random
 
 
-img_dir = r"photo"
+img_dir = r"D:\CV\ROBOCUP\photo"
 
 
+'''检测工具'''
 class CV_Task:
     
     def __init__(self):
@@ -17,27 +18,28 @@ class CV_Task:
         self.IsEmpty = None
         self.Color = None
         self.Shape = None
+    
     #一次检测
-    def Once_cv_task(self,src_img):
+    def Once_cv_task(self,src_img,debug = 0):
 
-        dst = self.pre.pre_process_th(src_img)
-        ret,roi,rgb_img = self.pre.Get_roi_and_cut(dst,src_img,debug=0)
-
+        blur = self.pre.pre_process_blur(src_img)
+        dst = self.pre.pre_process_th(blur)
+        ret,roi,rgb_img = self.pre.Get_roi_and_cut(dst,src_img,debug=debug)
+        
         if ret:          
             exp_frame,rgb_img2 = self.pre.Get_edge_and_expand(roi,rgb_img)
-            ret,A,B,C,D,shape=self.pr.Get_points(exp_frame,debug=0)
-            
+            ret,A,B,C,D,shape=self.pr.Get_points(exp_frame,debug=debug)
+                        
             self.Shape = shape
 
             if ret:
-                self.Color,self.IsEmpty=self.c.Color_Recg(rgb_img2,A,B,C,D,debug=0)
+                self.Color,self.IsEmpty=self.c.Color_Recg(rgb_img2,A,B,C,D,debug=debug)
             
                 print("-------------------------------------")
                 print("shape:",shape)
                 print("color:",self.Color)
                 print("IsEmpty:",self.IsEmpty)
                 print("-------------------------------------")
-
 
 '''预处理工具'''
 class PreProcess:
@@ -50,16 +52,26 @@ class PreProcess:
         self.canny_down = 20
         self.expand = 20
          
-    #二值化
-    def pre_process_th(self,img):
+    #预处理
+    def pre_process_blur(self,src_img):
         
-        #高斯滤波--》imgBlur
-        imgBlur = cv2.GaussianBlur(img, (3, 3), 1)
-        #转灰度--》imgGray
-        imgGray = cv2.cvtColor(imgBlur, cv2.COLOR_BGR2GRAY)
+        dst = cv2.bilateralFilter(src_img, 0, 100, 5)#双边
         
-        imgGray= imgGray.astype(np.uint8)
-        ret,th= cv2.threshold(imgGray,0,255,cv2.THRESH_BINARY_INV|cv2.THRESH_OTSU)     
+        h,s,v = cv2.split(dst)#V
+        v = cv2.blur(v,(11,11))
+        dst = cv2.merge([h,s,v])
+        
+        return dst
+
+    #二值化+滤波
+    def pre_process_th(self,blur_img):
+                
+        imgGray = cv2.cvtColor(blur_img, cv2.COLOR_BGR2GRAY)                
+        th = cv2.adaptiveThreshold(imgGray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 35, 3)#亮度差别大首选
+        
+        th = cv2.GaussianBlur(th, (3, 3), 0)
+        kernel = np.ones((3, 3), np.uint8)
+        th = cv2.morphologyEx(th, cv2.MORPH_CLOSE, kernel)
 
         self.img_y_max = th.shape[0]
         self.img_x_max = th.shape[1]
@@ -70,74 +82,76 @@ class PreProcess:
     def Get_roi_and_cut(self,th,src_img,step=8,debug = 0):
         
 
-        LEFT = None
-        RIGHT = None
+        # LEFT = None
+        # RIGHT = None
         
-        l_x = 2
-        mid_x = int((self.img_x_max-4)/2)
-        r_x = self.img_x_max-2
+        # l_x = 2
+        # mid_x = int((self.img_x_max-4)/2)
+        # r_x = self.img_x_max-2
 
-        debug_img = cv2.cvtColor(th, cv2.COLOR_GRAY2BGR)
+        # debug_img = cv2.cvtColor(th, cv2.COLOR_GRAY2BGR)
 
-        #从左往右
-        for x_step in range(l_x,mid_x,step):
+        # #从左往右
+        # for x_step in range(l_x,mid_x,step):
                     
-            slice_img = th[:,x_step]
+        #     slice_img = th[:,x_step]
 
-            noisy_=np.sum(slice_img == 255)
-            density_noisy = noisy_ / self.img_y_max
+        #     noisy_=np.sum(slice_img == 255)
+        #     density_noisy = noisy_ / self.img_y_max
             
-            if debug:
-                print(density_noisy)
-                a = (x_step,0)
-                b = (x_step,self.img_y_max)
-                cv2.line(debug_img, a,b,(255,0,0),3)
-                cv2.imshow("debug_img", debug_img)
-                cv2.waitKey(100)
+        #     if debug:
+        #         print(density_noisy)
+        #         a = (x_step,0)
+        #         b = (x_step,self.img_y_max)
+        #         cv2.line(debug_img, a,b,(255,0,0),3)
+        #         cv2.imshow("debug_img", debug_img)
+        #         cv2.waitKey(100)
 
-            if density_noisy <= 0.01:
-                LEFT = x_step
-                print("@@@@@@@@去白边@@@@@@@@@@")
-                print("ROI左边界",LEFT)
-                print("左边界密度",density_noisy)
-                break
+        #     if density_noisy <= 0.01:
+        #         LEFT = x_step
+        #         print("@@@@@@@@去白边@@@@@@@@@@")
+        #         print("ROI左边界",LEFT)
+        #         print("左边界密度",density_noisy)
+        #         break
 
-        #从右往左
-        for x_step in range(r_x,mid_x,-step):
+        # #从右往左
+        # for x_step in range(r_x,mid_x,-step):
 
-            slice_img = th[:,x_step]
+        #     slice_img = th[:,x_step]
 
-            noisy_=np.sum(slice_img == 255)
-            density_noisy = noisy_ / self.img_y_max
+        #     noisy_=np.sum(slice_img == 255)
+        #     density_noisy = noisy_ / self.img_y_max
             
-            if debug:
-                print(density_noisy)
-                a = (x_step,0)
-                b = (x_step,self.img_y_max)
-                cv2.line(debug_img, a,b,(255,255,0),3)
-                cv2.imshow("debug_img", debug_img)
-                cv2.waitKey(100)
+        #     if debug:
+        #         print(density_noisy)
+        #         a = (x_step,0)
+        #         b = (x_step,self.img_y_max)
+        #         cv2.line(debug_img, a,b,(255,255,0),3)
+        #         cv2.imshow("debug_img", debug_img)
+        #         cv2.waitKey(100)
 
-            if density_noisy <= 0.01:
-                RIGHT = x_step
-                print("ROI右边界",RIGHT)
-                print("右边界密度",density_noisy)
-                break
+        #     if density_noisy <= 0.01:
+        #         RIGHT = x_step
+        #         print("ROI右边界",RIGHT)
+        #         print("右边界密度",density_noisy)
+        #         break
         
-        if LEFT == None or RIGHT == None or LEFT >= RIGHT:
-            print("ROI_error,二值化一片白,返回原图,Get_roi（）不出来")
-            print("@@@@@@@@去白边@@@@@@@@@@")
-            print()
+        # if LEFT == None or RIGHT == None or LEFT >= RIGHT:
+        #     print("ROI_error,二值化一片白,返回原图,Get_roi（）不出来")
+        #     print("@@@@@@@@去白边@@@@@@@@@@")
+        #     print()
             
-            return False,th,src_img
-        else:
-            print("ROI区域",LEFT,RIGHT)
-            print("@@@@@@@@去白边@@@@@@@@@@")
-            print()
+        #     return False,th,src_img
+        # else:
+        #     print("ROI区域",LEFT,RIGHT)
+        #     print("@@@@@@@@去白边@@@@@@@@@@")
+        #     print()
             
-            roi_img = th[:,LEFT:RIGHT]
-            rgb_img = src_img[:,LEFT:RIGHT]
-            return True,roi_img,rgb_img
+        #     roi_img = th[:,LEFT:RIGHT]
+        #     rgb_img = src_img[:,LEFT:RIGHT]
+        #     return True,roi_img,rgb_img
+
+        return True,th,src_img
 
     #边缘化+扩黑边
     def Get_edge_and_expand(self,img,src_img):
@@ -147,9 +161,9 @@ class PreProcess:
         
         imgCanny = cv2.Canny(img, self.canny_down, self.canny_up)
         
-        #膨胀
-        kernel = np.ones((3, 3), np.uint8)
-        imgDilation = cv2.dilate(imgCanny, kernel, iterations=3)
+        #闭运算
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        imgDilation = cv2.dilate(imgCanny, kernel, iterations=1)
         
         #扩边
         exp_frame = cv2.copyMakeBorder(imgDilation,self.expand,self.expand,self.expand,self.expand,cv2.BORDER_CONSTANT,value=[0,0,0])
@@ -302,10 +316,12 @@ class ColorRec:
         
         #中心roi
         center_x,center_y,roi_x,roi_y = self.util_roi_center(A,B,C,D,rgb_img2,debug)
+                
         center_roi = self.roi_get(rgb_img2,center_x,center_y,debug)
     
+
         #判断是否空心      
-        ret = self.judge_center_isempty(center_roi)
+        ret = self.judge_center_isempty(center_roi,debug)
         
         #空心
         if ret:
@@ -387,29 +403,33 @@ class ColorRec:
 
     '''获取中心区域roi'''
     def roi_get(self,src_img,center_x,center_y,debug = 0):
+        
+        rgb_img_debug = src_img.copy()
+
         #取以center_x,center_y为中心，roi_range为半径的roi
         center_roi = src_img[center_y-self.roi_range:center_y+self.roi_range,center_x-self.roi_range:center_x+self.roi_range]
         
         if debug:
-            debug_roi_img = src_img
-            cv2.rectangle(debug_roi_img,(center_x-self.roi_range,center_y-self.roi_range),(center_x+self.roi_range,center_y+self.roi_range),(255,0,0),2)
-            cv2.imshow("debug_roi_img", debug_roi_img)
+            cv2.rectangle(rgb_img_debug,(center_x-self.roi_range,center_y-self.roi_range),(center_x+self.roi_range,center_y+self.roi_range),(255,0,0),2)
+            cv2.imshow("debug_roi_img", rgb_img_debug)
             cv2.waitKey(0)
 
         return center_roi
 
     def util_roi_center(self,A,B,C,D,src_img,debug = 0):
+        rgb_img_debug = src_img.copy()
+        
         center_x = int((A[0]+B[0]+C[0]+D[0])/4)
         center_y = int((A[1]+B[1]+C[1]+D[1])/4)
 
         roi_x = int(A[0]+self.roi_A_shift)
         roi_y = int(A[1]+self.roi_A_shift)
         
+        
         if debug:
-            debug_img = src_img
-            cv2.circle(debug_img,(center_x,center_y),5,(255,0,255),-1)
-            cv2.circle(debug_img,(roi_x,roi_y),5,(0,0,255),-1)
-            cv2.imshow("debug_roi_get_point", debug_img)
+            cv2.circle(rgb_img_debug,(center_x,center_y),5,(255,0,255),-1)
+            cv2.circle(rgb_img_debug,(roi_x,roi_y),5,(0,0,255),-1)
+            cv2.imshow("rgb_img_debug", rgb_img_debug)
             cv2.waitKey(0)
         
         return center_x,center_y,roi_x,roi_y
@@ -429,37 +449,14 @@ def debugger():
         cv2.imshow("src_img", src_img)    
         cv2.waitKey(0)
 
-        #预处理
-        dst = pre.pre_process_th(src_img)
-        ret,roi,rgb_img = pre.Get_roi_and_cut(dst,src_img,debug=1)
-
-        if ret:
-            
-            #角点提取
-            exp_frame,rgb_img2 = pre.Get_edge_and_expand(roi,rgb_img)
-            cv2.imshow("exp_frame", exp_frame)
-            cv2.waitKey(0)
-            ret,A,B,C,D=pr.Get_points(exp_frame,debug=1)
-            
-            if ret:
-                c.Color_Recg(rgb_img2,A,B,C,D)
-
+        cvt = CV_Task()
+        cvt.Once_cv_task(src_img,debug=1)
 
 
 if __name__ == '__main__':
-    # debugger()
-    
-    indx = random.randint(1, len(os.listdir(img_dir)))
-    img_name = str(indx)+".jpg"
-    img_path = os.path.join(img_dir, img_name)
-    
-    print(img_path)
-    
-    print()
-    src_img=cv2.imread(img_path)
-    cvt = CV_Task()
-    cvt.Once_cv_task(src_img)
+    debugger()
     
 
+    
 
     
